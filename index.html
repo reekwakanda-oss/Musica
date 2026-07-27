@@ -1,0 +1,254 @@
+<!doctype html>
+<!--
+  DIRECTION CONTRACT — Audio → MIDI
+
+  THESIS: The instrument is the page. Refuses the category default: a marketing hero
+  above a tool that stays hidden until you feed it.
+
+  OWN-WORLD: An aurora light field — deep sea-green ground with drifting teal/mint
+  blooms — seen through real liquid glass: blurred, saturated, pointer-lit surfaces
+  with conic refraction rims and continuous 12/18/28px corners. Electric lime is the
+  only signal colour and it means one thing: sounding now. Manrope for voice,
+  Azeret Mono for every live number.
+
+  STORY: A visitor lands on a working instrument already idling, drops a file into the
+  glass panel floating over it, watches that panel dissolve as their own notes cascade
+  in, then plays it back — or plays the keys themselves.
+
+  FIRST VIEWPORT: glass nav rail; compact centred headline; the console — piano roll
+  above an 88-key keyboard — filling the rest and already animating; the source panel
+  floating at its centre holding the primary action.
+
+  FORM: Brief-pinned (liquid glass, Aurora palette, deep chroma night). No seed roll —
+  a pinned direction beats the roll.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="dark" />
+<meta name="description" content="Turn audio into MIDI. Upload a file or paste a YouTube link, watch every note fall onto the keys in real time, then play it back or export the MIDI." />
+<title>Audio → MIDI</title>
+<!-- three falling notes, the middle one sounding -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23030f0d'/%3E%3Crect x='6' y='8' width='5' height='17' rx='1.5' fill='%23ecfff8' opacity='.4'/%3E%3Crect x='13.5' y='4' width='5' height='21' rx='1.5' fill='%23c9ff4d'/%3E%3Crect x='21' y='11' width='5' height='14' rx='1.5' fill='%23ecfff8' opacity='.4'/%3E%3C/svg%3E" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Azeret+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="style.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+</head>
+<body>
+  <!-- The field is dark and inert. The pointer is the only light in the room, and
+       everything else on the page is glass floating over it. -->
+  <div class="field" aria-hidden="true">
+    <span class="field-light"></span>
+    <span class="field-vignette"></span>
+    <span class="field-grain"></span>
+  </div>
+
+  <a class="skip-link" href="#console">Skip to the console</a>
+
+  <nav class="rail glass" aria-label="Primary">
+    <span class="wordmark">Audio <span class="wordmark-arrow" aria-hidden="true">→</span> MIDI</span>
+    <span class="rail-chip">
+      <span class="rail-dot" aria-hidden="true"></span>
+      Basic Pitch · server-side
+    </span>
+    <div class="rail-links">
+      <a href="#console">Console</a>
+      <a href="#notes">The notes</a>
+      <a href="#chain">How it works</a>
+    </div>
+  </nav>
+
+  <header class="hero">
+    <h1>Hear it. See every note.</h1>
+    <p class="hero-sub">
+      Upload audio or paste a YouTube link — watch the notes fall in real time,<br class="wide-only" />
+      then play it back or export the MIDI.
+    </p>
+  </header>
+
+  <main>
+  <section class="console-section" id="console">
+    <div class="console glass" id="console-shell">
+      <!-- Transport rail: hidden controls stay out of the flow until there's something to play. -->
+      <div class="transport" id="transport">
+        <button id="play-btn" class="btn btn-primary" type="button">
+          <span class="btn-glyph" aria-hidden="true">▶</span> Play
+        </button>
+        <button id="stop-btn" class="btn btn-glass" type="button">
+          <span class="btn-glyph" aria-hidden="true">■</span> Stop
+        </button>
+
+        <span class="readout" id="time-label" aria-label="Elapsed time">0.00s</span>
+        <span class="readout-sep" aria-hidden="true"></span>
+        <span class="readout readout-dim" id="note-count">idle pattern — not a transcription</span>
+
+        <!-- What is sounding this instant, spelled out. The written answer to
+             "what notes is that" — the note list below is the accessible copy,
+             so this stays out of the a11y tree instead of firing off constantly. -->
+        <span class="readout readout-now" id="now-notes" aria-hidden="true"></span>
+
+        <div class="transport-tail">
+          <button id="names-btn" class="btn btn-glass btn-sm is-on" type="button" aria-pressed="true">Names</button>
+          <button id="reopen-source-btn" class="btn btn-glass btn-sm" type="button" hidden>New source</button>
+          <a id="download-link" class="btn btn-glass btn-sm" href="#" download="transcription.mid">MIDI ↓</a>
+          <a id="download-wav-link" class="btn btn-glass btn-sm" href="#" download="melody.wav">WAV ↓</a>
+        </div>
+      </div>
+
+      <!-- Roll + keyboard are one instrument: a note's column is its key's column. -->
+      <div class="stage" id="stage">
+        <div class="roll-wrap">
+          <canvas id="roll" role="img" aria-label="Piano roll, currently showing a looping idle pattern rather than a transcription."></canvas>
+          <div class="inspector" id="inspector" hidden>
+            <span class="inspector-pitch" id="insp-pitch">C4</span>
+            <span class="inspector-row"><span>start</span><b id="insp-start">0.00s</b></span>
+            <span class="inspector-row"><span>length</span><b id="insp-len">0.00s</b></span>
+            <span class="inspector-row"><span>vel</span><b id="insp-vel">0.00</b></span>
+            <span class="inspector-meter"><i id="insp-bar"></i></span>
+          </div>
+        </div>
+
+        <div id="keyboard" class="keyboard" role="group" aria-label="Playable 88-key piano. Use the arrow keys to move between keys and Enter to play one."></div>
+        <p class="stage-hint" id="stage-hint">Click the keys to play them</p>
+      </div>
+
+      <!-- The source panel floats over the console: you watch the roll through it. -->
+      <div class="source-layer" id="source-layer">
+        <div class="source glass" id="source-panel">
+          <div class="source-head">
+            <p class="panel-label">Source</p>
+            <div class="mode" role="radiogroup" aria-label="Output">
+              <button class="mode-opt is-on" type="button" role="radio" aria-checked="true" data-wav-only="false">Notes + MIDI</button>
+              <button class="mode-opt" type="button" role="radio" aria-checked="false" data-wav-only="true">WAV only</button>
+            </div>
+          </div>
+
+          <div class="drop" id="drop-zone">
+            <input id="file-input" type="file" accept="audio/*,video/*" />
+            <span class="drop-mark" aria-hidden="true">
+              <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M16 21V6" /><path d="M10.5 11.5 16 6l5.5 5.5" /><path d="M5 20v4a2 2 0 0 0 2 2h18a2 2 0 0 0 2-2v-4" />
+              </svg>
+            </span>
+            <span class="drop-title" id="drop-title">Drop an audio or video file</span>
+            <span class="drop-sub" id="drop-sub">or click to browse · mp3, wav, m4a, mp4, mov</span>
+          </div>
+
+          <button id="convert-file-btn" class="btn btn-primary btn-block" type="button">Transcribe</button>
+
+          <div class="or"><span>or</span></div>
+
+          <div class="url-row">
+            <input id="url-input" type="url" inputmode="url" placeholder="Paste a YouTube URL…" aria-label="YouTube URL" />
+            <button id="convert-url-btn" class="btn btn-glass" type="button">Fetch</button>
+          </div>
+          <p class="fine-print">Uploads are the supported path; YouTube fetching may be restricted.</p>
+
+          <!-- Conversion costs minutes, so the wait is narrated: which stage is
+               running, how far in, and how long is left. The estimate comes from
+               the audio's real duration and the machine's measured speed; when
+               duration can't be probed the bar goes indeterminate rather than
+               inventing progress. -->
+          <div class="progress" id="progress" hidden>
+            <ol class="progress-steps" id="progress-steps"></ol>
+            <div class="progress-line">
+              <span class="progress-stage" id="progress-stage">Starting…</span>
+              <span class="progress-eta" id="progress-eta"></span>
+            </div>
+            <div
+              class="progress-track"
+              id="progress-track"
+              role="progressbar"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              aria-label="Conversion progress"
+            >
+              <i class="progress-bar" id="progress-bar"></i>
+            </div>
+          </div>
+
+          <p id="status" role="status" aria-live="polite"></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- The written answer. Someone who heard a riff wants note names, not a canvas —
+       and this list is also the non-visual equivalent of the roll, which a canvas
+       cannot provide on its own. Cleanup lives here because it edits this list. -->
+  <section class="notes-section" id="notes">
+    <div class="notes-panel glass">
+      <div class="notes-head">
+        <div class="notes-id">
+          <p class="panel-label">The notes</p>
+          <p class="notes-key" id="notes-key">Nothing transcribed yet</p>
+        </div>
+
+        <div class="cleanup" role="group" aria-label="Cleanup">
+          <div class="cleanup-row">
+            <label class="cleanup-label" for="min-len">
+              Ignore notes under
+              <output class="cleanup-value" id="min-len-out" for="min-len">0 ms</output>
+            </label>
+            <input
+              id="min-len"
+              class="cleanup-range"
+              type="range"
+              min="0"
+              max="400"
+              step="10"
+              value="0"
+              aria-describedby="cleanup-note"
+            />
+          </div>
+          <button
+            id="in-key-btn"
+            class="cleanup-toggle"
+            type="button"
+            role="switch"
+            aria-checked="false"
+            aria-describedby="cleanup-note"
+          >
+            <span class="cleanup-switch" aria-hidden="true"></span>
+            In-key notes only
+          </button>
+          <p class="cleanup-note" id="cleanup-note">
+            Detection is tuned to catch quiet notes, which also lets short false ones
+            through. These filter the list, the roll, playback and the MIDI download —
+            the WAV is untouched.
+          </p>
+        </div>
+      </div>
+
+      <div class="note-list-wrap">
+        <p class="note-list-empty" id="note-list-empty">
+          Transcribe something and every note lands here as text — named, timed, and
+          grouped into chords.
+        </p>
+        <ol class="note-list" id="note-list" aria-label="Transcribed notes in time order"></ol>
+      </div>
+      <p class="note-list-more" id="note-list-more" hidden></p>
+    </div>
+  </section>
+
+  <section class="chain-section" id="chain">
+    <h2 class="chain-title">What happens to your audio</h2>
+    <ol class="chain glass">
+      <li><span class="chain-step">01</span><b>Decode</b><span>Your file — or the YouTube audio — becomes mono 22 050 Hz WAV.</span></li>
+      <li><span class="chain-step">02</span><b>Strip drums</b><span>Demucs separates the stems and drops percussion, so transients stop inventing notes.</span></li>
+      <li><span class="chain-step">03</span><b>Detect pitch</b><span>Spotify's Basic Pitch reads onsets and sustain into discrete note events.</span></li>
+      <li><span class="chain-step">04</span><b>Play it back</b><span>The same note list drives this roll, the keys, and the <code>.mid</code> you download.</span></li>
+    </ol>
+  </section>
+  </main>
+
+  <footer class="site-footer">
+    <p>Powered by Spotify's Basic Pitch, Demucs, and Tone.js. Nothing is stored between visits.</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
